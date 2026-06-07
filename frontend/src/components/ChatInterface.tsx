@@ -24,7 +24,7 @@ const WELCOME: Message = {
   id: '0',
   role: 'assistant',
   content:
-    "Welcome! 💍🌸 I'm so happy you're here!\n\nI'm the wedding assistant for Sarah & James's special day. I can answer any questions about the celebration, and I'd love to help you RSVP.\n\nWhat can I help you with today?",
+    "שלום! 💍🌸\n\nאני העוזר הדיגיטלי של חתונת חילה ונועם!\n\nאני כאן לענות על שאלות ולסייע באישור הגעה.\nמה אוכל לעזור לך היום?",
   timestamp: new Date(),
 }
 
@@ -144,7 +144,8 @@ export default function ChatInterface() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder="כתוב הודעה..."
+            dir="auto"
             rows={1}
             className="flex-1 resize-none bg-white border border-cream-dark rounded-xl px-4 py-2.5 text-sm text-brown font-sans placeholder-brown-light placeholder-opacity-50 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-opacity-40 transition-all max-h-32"
             style={{ lineHeight: '1.5' }}
@@ -165,10 +166,10 @@ export default function ChatInterface() {
       {/* Quick reply suggestions */}
       <div className="flex flex-wrap gap-2 mt-3 justify-center">
         {[
-          'I\'d like to RSVP',
-          'What\'s the dress code?',
-          'How do I get there?',
-          'What time does it start?',
+          'אני רוצה לאשר הגעה',
+          'מה קוד הלבוש?',
+          'איפה האירוע?',
+          'מה שעת ההתחלה?',
         ].map(suggestion => (
           <button
             key={suggestion}
