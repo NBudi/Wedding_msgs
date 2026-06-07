@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Lato', sans-serif;
+  }
+
+  body {
+    background-color: #FAF6F1;
+  }
+
+  * {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .wedding-bg {
+    background-image:
+      radial-gradient(circle at 10% 20%, rgba(232, 180, 184, 0.15) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(201, 169, 110, 0.12) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, rgba(156, 175, 136, 0.08) 0%, transparent 60%);
+  }
+
+  .typing-dot {
+    @apply w-2 h-2 rounded-full bg-gold inline-block mx-0.5;
+    animation: pulseDot 1.4s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F0E8DC;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C9A96E;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A8834A;
+}
