@@ -2,7 +2,22 @@
 
 ## Before You Start (One-Time)
 
-### 1. Check the template is approved
+### 1. Add a Payment Method to Meta
+Without this, WhatsApp will block sending invitations to guests.
+Cost: roughly **$0.05–0.08 per guest** (for 100 guests ≈ $5–8 total).
+
+1. Go to [business.facebook.com](https://business.facebook.com)
+2. Left menu → **Settings** (bottom left gear icon)
+3. Click **Billing & Payments**
+4. Click **Add Payment Method**
+5. Enter your credit card details and save
+6. The "Missing payment method" warning will disappear
+
+> You won't be charged until you actually send messages. The chatbot replies to guests are free — you only pay for the outbound invitation you send first.
+
+---
+
+### 2. Check the template is approved
 1. Go to [business.facebook.com](https://business.facebook.com)
 2. Left menu → **WhatsApp Manager** → **Message Templates**
 3. Find `wedding_invitation` — status must be **Approved** (green)
