@@ -67,7 +67,7 @@ def init_db():
 init_db()
 
 WEDDING = {
-    "couple_he": "חילה ונועם",
+    "couple_he": "הילה ונועם",
     "date_he": "20 בנובמבר 2026",
     "time_he": "18:00",
     "venue": "The Rose Garden Estate",
@@ -292,7 +292,7 @@ async def send_invitation_buttons(phone: str, guest_name: str) -> bool:
             "body": {
                 "text": (
                     f"שלום {guest_name}! 💍\n\n"
-                    f"חילה ונועם שמחים להזמין אתכם לחתונתם!\n\n"
+                    f"הילה ונועם שמחים להזמין אתכם לחתונתם!\n\n"
                     f"📅 {WEDDING['date_he']} | 🕕 {WEDDING['time_he']}\n"
                     f"📍 {WEDDING['venue']}\n\n"
                     "האם תוכלו להגיע?"
@@ -315,7 +315,7 @@ async def send_whatsapp_template(phone: str, guest_name: str) -> bool:
     Use this for first-contact outreach to any number.
     Create the template at: Meta Business Manager -> WhatsApp -> Message Templates
     Template body example (Hebrew, 1 variable):
-      שלום {{1}}, חילה ונועם שמחים להזמינך לחתונתם! לפרטים ואישור הגעה שלח/י הודעה כאן 💍
+      שלום {{1}}, הילה ונועם שמחים להזמינך לחתונתם! לפרטים ואישור הגעה שלח/י הודעה כאן 💍
     """
     return await _wa_post({
         "messaging_product": "whatsapp",

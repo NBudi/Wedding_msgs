@@ -14,7 +14,7 @@ export default function App() {
             Together With Their Families
           </p>
           <h1 className="font-serif text-4xl md:text-5xl font-semibold italic mb-1">
-            חילה ונועם
+            הילה ונועם
           </h1>
           <div className="flex items-center justify-center gap-3 my-3">
             <div className="h-px bg-gold w-16 opacity-60" />
