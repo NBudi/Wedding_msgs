@@ -240,7 +240,14 @@ export default function AdminPanel() {
             ))}
           </div>
 
-          <div className="flex justify-end mb-3">
+          <div className="flex justify-end gap-2 mb-3">
+            <a
+              href="/api/export/csv"
+              download="rsvp_summary.csv"
+              className="text-xs bg-sage text-white border border-sage rounded-full px-4 py-1.5 hover:opacity-80 transition-opacity font-sans"
+            >
+              ⬇ הורד CSV
+            </a>
             <button onClick={fetchRsvps} className="text-xs text-gold border border-gold rounded-full px-4 py-1.5 hover:bg-gold hover:text-white transition-colors font-sans">
               רענן
             </button>

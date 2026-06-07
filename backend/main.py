@@ -8,7 +8,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 import anthropic
 
@@ -148,6 +148,39 @@ def serialize_content(content):
     return result
 
 
+SUMMARY_CSV = "rsvp_summary.csv"
+
+def export_summary_csv():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # Join guests (phone) with rsvps (attendance info) by name
+    rows = conn.execute("""
+        SELECT
+            r.guest_name        AS שם,
+            g.phone             AS טלפון,
+            CASE r.attending WHEN 1 THEN 'כן' ELSE 'לא' END AS מגיע,
+            r.num_guests        AS מספר_אורחים,
+            CASE r.meal_preference
+                WHEN 'chicken'    THEN 'עוף'
+                WHEN 'fish'       THEN 'דג'
+                WHEN 'vegetarian' THEN 'צמחוני'
+                WHEN 'vegan'      THEN 'טבעוני'
+                ELSE COALESCE(r.meal_preference, '')
+            END                 AS העדפת_ארוחה,
+            COALESCE(r.message_to_couple, '') AS הודעה,
+            r.created_at        AS תאריך
+        FROM rsvps r
+        LEFT JOIN guests g ON g.name = r.guest_name
+        ORDER BY r.created_at DESC
+    """).fetchall()
+    conn.close()
+
+    with open(SUMMARY_CSV, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=["שם", "טלפון", "מגיע", "מספר_אורחים", "העדפת_ארוחה", "הודעה", "תאריך"])
+        writer.writeheader()
+        writer.writerows([dict(r) for r in rows])
+
+
 def save_rsvp_to_db(data: dict):
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
@@ -167,6 +200,7 @@ def save_rsvp_to_db(data: dict):
     )
     conn.commit()
     conn.close()
+    export_summary_csv()
 
 
 async def process_message(message: str, session_id: str) -> tuple[str, bool]:
@@ -327,6 +361,16 @@ async def get_rsvps():
     return [dict(row) for row in rows]
 
 
+@app.get("/api/export/csv")
+async def export_csv():
+    export_summary_csv()
+    return FileResponse(
+        SUMMARY_CSV,
+        media_type="text/csv",
+        filename="rsvp_summary.csv",
+    )
+
+
 @app.delete("/api/rsvps/{rsvp_id}")
 async def delete_rsvp(rsvp_id: int):
     conn = sqlite3.connect(DB_PATH)
@@ -407,7 +451,7 @@ async def send_invitations():
     failed = 0
 
     for guest in guests:
-        success = await send_invitation_buttons(guest["phone"], guest["name"])
+        success = await send_whatsapp_template(guest["phone"], guest["name"])
         if success:
             conn.execute(
                 "UPDATE guests SET invitation_sent = 1, sent_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -426,12 +470,13 @@ async def send_invitations():
 
 @app.get("/webhook/whatsapp")
 async def verify_whatsapp_webhook(request: Request):
-    params = request.query_params
-    if (
-        params.get("hub.mode") == "subscribe"
-        and params.get("hub.verify.token") == WHATSAPP_VERIFY_TOKEN
-    ):
-        return Response(content=params.get("hub.challenge", ""), media_type="text/plain")
+    from urllib.parse import parse_qs
+    qs = parse_qs(str(request.url.query))
+    mode    = (qs.get("hub.mode")         or qs.get("hub_mode")         or [""])[0]
+    token   = (qs.get("hub.verify_token") or qs.get("hub_verify_token") or [""])[0]
+    challenge = (qs.get("hub.challenge")  or qs.get("hub_challenge")    or [""])[0]
+    if mode == "subscribe" and token == WHATSAPP_VERIFY_TOKEN:
+        return Response(content=challenge, media_type="text/plain")
     return Response(status_code=403)
 
 
