@@ -1,9 +1,14 @@
-from fastapi import FastAPI
+﻿import html
+import sqlite3
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 import anthropic
-import sqlite3
-import os
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -44,35 +49,35 @@ def init_db():
 init_db()
 
 WEDDING = {
-    "couple": "Sarah & James",
-    "date": "September 20, 2025",
-    "time": "4:00 PM",
+    "couple": "Hila & Noam",
+    "date": "November 20, 2026",
+    "time": "6:00 PM",
     "venue": "The Rose Garden Estate",
     "address": "123 Garden Lane, Beverly Hills, CA 90210",
     "reception_time": "6:00 PM",
     "dress_code": "Black Tie Optional",
     "rsvp_deadline": "August 1, 2025",
-    "contact_email": "hello@sarahandjames.com",
+    "contact_email": "HilaandNoam@wedding.com",
 }
 
-SYSTEM_PROMPT = f"""You are the wedding invitation chatbot for {WEDDING['couple']}'s wedding. Be warm, joyful, and celebratory.
+SYSTEM_PROMPT = f"""You are the wedding invitation chatbot for {WEDDING["couple"]}'s wedding. Be warm, joyful, and celebratory.
 
 Wedding Details:
-- Couple: {WEDDING['couple']}
-- Date: {WEDDING['date']} at {WEDDING['time']}
-- Venue: {WEDDING['venue']}, {WEDDING['address']}
-- Reception: {WEDDING['reception_time']}
-- Dress Code: {WEDDING['dress_code']}
-- RSVP Deadline: {WEDDING['rsvp_deadline']}
+- Couple: {WEDDING["couple"]}
+- Date: {WEDDING["date"]} at {WEDDING["time"]}
+- Venue: {WEDDING["venue"]}, {WEDDING["address"]}
+- Reception: {WEDDING["reception_time"]}
+- Dress Code: {WEDDING["dress_code"]}
+- RSVP Deadline: {WEDDING["rsvp_deadline"]}
 
 Your job:
 1. Welcome guests warmly and answer questions about the wedding
-2. Collect RSVPs — ask for: guest name, whether attending, number in their party, meal choice (chicken/fish/vegetarian/vegan), any dietary restrictions, and an optional message for the couple
+2. Collect RSVPs - ask for: guest name, whether attending, number in their party, meal choice (chicken/fish/vegetarian/vegan), any dietary restrictions, and an optional message for the couple
 3. Once you have all RSVP details from an attending guest, call save_rsvp to record them
-4. If guests can't attend, still call save_rsvp with attending=false
-5. For questions you can't answer, direct them to {WEDDING['contact_email']}
+4. If guests cannot attend, still call save_rsvp with attending=false
+5. For questions you cannot answer, direct them to {WEDDING["contact_email"]}
 
-Keep responses warm but concise. Use occasional celebratory emojis 💍🌸🎊"""
+Keep responses warm but concise. Use occasional celebratory emojis"""
 
 TOOLS = [
     {
@@ -88,7 +93,7 @@ TOOLS = [
                 "meal_preference": {
                     "type": "string",
                     "enum": ["chicken", "fish", "vegetarian", "vegan"],
-                    "description": "Meal choice"
+                    "description": "Meal choice",
                 },
                 "dietary_restrictions": {"type": "string", "description": "Allergies or dietary needs"},
                 "message_to_couple": {"type": "string", "description": "A message or wish for the couple"},
@@ -98,6 +103,8 @@ TOOLS = [
     }
 ]
 
+
+# -- Helpers ------------------------------------------------------------------
 
 def serialize_content(content):
     if isinstance(content, str):
@@ -122,7 +129,7 @@ def save_rsvp_to_db(data: dict):
         """
         INSERT INTO rsvps (guest_name, email, attending, num_guests, meal_preference, dietary_restrictions, message_to_couple)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """,
+        """,
         (
             data.get("guest_name"),
             data.get("email"),
@@ -137,24 +144,12 @@ def save_rsvp_to_db(data: dict):
     conn.close()
 
 
-class ChatRequest(BaseModel):
-    message: str
-    session_id: str
-
-
-class ChatResponse(BaseModel):
-    response: str
-    rsvp_saved: bool = False
-
-
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    session_id = request.session_id
-
+async def process_message(message: str, session_id: str) -> tuple[str, bool]:
+    """Core chat logic shared by the web API and the WhatsApp webhook."""
     if session_id not in conversations:
         conversations[session_id] = []
 
-    conversations[session_id].append({"role": "user", "content": request.message})
+    conversations[session_id].append({"role": "user", "content": message})
 
     # Keep history bounded to last 40 messages
     if len(conversations[session_id]) > 40:
@@ -163,7 +158,7 @@ async def chat(request: ChatRequest):
     rsvp_saved = False
     response = None
 
-    for _ in range(5):  # max 5 tool-use loops
+    for _ in range(5):  # max tool-use loops
         response = client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=1024,
@@ -179,7 +174,7 @@ async def chat(request: ChatRequest):
             })
             break
 
-        # Handle tool calls
+        # Execute tool calls
         conversations[session_id].append({
             "role": "assistant",
             "content": serialize_content(response.content),
@@ -206,7 +201,25 @@ async def chat(request: ChatRequest):
                 assistant_message = block.text
                 break
 
-    return ChatResponse(response=assistant_message, rsvp_saved=rsvp_saved)
+    return assistant_message, rsvp_saved
+
+
+# -- Web API ------------------------------------------------------------------
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str
+
+
+class ChatResponse(BaseModel):
+    response: str
+    rsvp_saved: bool = False
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    response_text, rsvp_saved = await process_message(request.message, request.session_id)
+    return ChatResponse(response=response_text, rsvp_saved=rsvp_saved)
 
 
 @app.get("/api/rsvps")
@@ -225,3 +238,28 @@ async def delete_rsvp(rsvp_id: int):
     conn.commit()
     conn.close()
     return {"deleted": rsvp_id}
+
+
+# -- WhatsApp webhook (Twilio) ------------------------------------------------
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(
+    From: str = Form(...),
+    Body: str = Form(...),
+):
+    """
+    Twilio calls this endpoint when a guest sends a WhatsApp message.
+    From: "whatsapp:+1234567890"  (sender phone number)
+    Body: the message text
+    Returns TwiML so Twilio delivers the reply back to WhatsApp.
+    """
+    response_text, _ = await process_message(Body, session_id=From)
+
+    # Escape any XML special chars before embedding in TwiML
+    safe_text = html.escape(response_text)
+    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Message>{safe_text}</Message>
+</Response>"""
+
+    return Response(content=twiml, media_type="application/xml")
