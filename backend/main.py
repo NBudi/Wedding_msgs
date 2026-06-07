@@ -1,8 +1,9 @@
-﻿import html
+﻿import os
 import sqlite3
 
+import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -25,6 +26,10 @@ client = anthropic.Anthropic()
 conversations: dict[str, list] = {}
 
 DB_PATH = "wedding_data.db"
+
+# WhatsApp Cloud API credentials (set in .env)
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "wedding_verify_token")
 
 
 def init_db():
@@ -151,14 +156,13 @@ async def process_message(message: str, session_id: str) -> tuple[str, bool]:
 
     conversations[session_id].append({"role": "user", "content": message})
 
-    # Keep history bounded to last 40 messages
     if len(conversations[session_id]) > 40:
         conversations[session_id] = conversations[session_id][-40:]
 
     rsvp_saved = False
     response = None
 
-    for _ in range(5):  # max tool-use loops
+    for _ in range(5):
         response = client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=1024,
@@ -174,7 +178,6 @@ async def process_message(message: str, session_id: str) -> tuple[str, bool]:
             })
             break
 
-        # Execute tool calls
         conversations[session_id].append({
             "role": "assistant",
             "content": serialize_content(response.content),
@@ -240,26 +243,65 @@ async def delete_rsvp(rsvp_id: int):
     return {"deleted": rsvp_id}
 
 
-# -- WhatsApp webhook (Twilio) ------------------------------------------------
+# -- WhatsApp webhook (Meta Cloud API - FREE) ---------------------------------
+
+@app.get("/webhook/whatsapp")
+async def verify_whatsapp_webhook(request: Request):
+    """
+    Meta calls this GET once when you register the webhook URL.
+    It sends hub.challenge and expects it echoed back.
+    """
+    params = request.query_params
+    if (
+        params.get("hub.mode") == "subscribe"
+        and params.get("hub.verify.token") == WHATSAPP_VERIFY_TOKEN
+    ):
+        return Response(content=params.get("hub.challenge", ""), media_type="text/plain")
+    return Response(status_code=403)
+
 
 @app.post("/webhook/whatsapp")
-async def whatsapp_webhook(
-    From: str = Form(...),
-    Body: str = Form(...),
-):
+async def whatsapp_webhook(request: Request):
     """
-    Twilio calls this endpoint when a guest sends a WhatsApp message.
-    From: "whatsapp:+1234567890"  (sender phone number)
-    Body: the message text
-    Returns TwiML so Twilio delivers the reply back to WhatsApp.
+    Meta calls this POST every time a guest sends a WhatsApp message.
+    We parse the message, run it through Claude, and reply via the Cloud API.
     """
-    response_text, _ = await process_message(Body, session_id=From)
+    body = await request.json()
 
-    # Escape any XML special chars before embedding in TwiML
-    safe_text = html.escape(response_text)
-    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Message>{safe_text}</Message>
-</Response>"""
+    try:
+        change_value = body["entry"][0]["changes"][0]["value"]
 
-    return Response(content=twiml, media_type="application/xml")
+        # Ignore delivery receipts and status updates
+        if "messages" not in change_value:
+            return {"status": "ignored"}
+
+        message = change_value["messages"][0]
+
+        # Only handle text messages
+        if message.get("type") != "text":
+            return {"status": "non-text ignored"}
+
+        from_number = message["from"]          # e.g. "972501234567"
+        text = message["text"]["body"]
+        phone_number_id = change_value["metadata"]["phone_number_id"]
+
+    except (KeyError, IndexError):
+        return {"status": "invalid payload"}
+
+    response_text, _ = await process_message(text, session_id=from_number)
+
+    # Send reply via Meta WhatsApp Cloud API
+    async with httpx.AsyncClient() as http:
+        await http.post(
+            f"https://graph.facebook.com/v21.0/{phone_number_id}/messages",
+            headers={"Authorization": f"Bearer {WHATSAPP_TOKEN}"},
+            json={
+                "messaging_product": "whatsapp",
+                "to": from_number,
+                "type": "text",
+                "text": {"body": response_text},
+            },
+            timeout=10,
+        )
+
+    return {"status": "ok"}
