@@ -14,7 +14,7 @@ export default function App() {
             Together With Their Families
           </p>
           <h1 className="font-serif text-4xl md:text-5xl font-semibold italic mb-1">
-            Sarah & James
+            חילה ונועם
           </h1>
           <div className="flex items-center justify-center gap-3 my-3">
             <div className="h-px bg-gold w-16 opacity-60" />
@@ -22,7 +22,7 @@ export default function App() {
             <div className="h-px bg-gold w-16 opacity-60" />
           </div>
           <p className="font-sans text-sm tracking-widest text-cream-dark opacity-80">
-            SEPTEMBER 20, 2025  •  THE ROSE GARDEN ESTATE
+            20 בנובמבר 2026  •  THE ROSE GARDEN ESTATE
           </p>
         </div>
       </header>
@@ -59,9 +59,9 @@ export default function App() {
         </div>
         <button
           onClick={() => setShowAdmin(!showAdmin)}
-          className="text-xs text-brown-light opacity-40 hover:opacity-70 transition-opacity font-sans tracking-widest uppercase"
+          className="text-xs text-brown-light opacity-60 hover:opacity-100 transition-opacity font-sans tracking-widest uppercase border border-brown-light border-opacity-30 hover:border-opacity-60 px-4 py-1.5 rounded-full"
         >
-          {showAdmin ? '← Back to Invitation' : 'Admin'}
+          {showAdmin ? '← חזרה להזמנה' : '⚙ ניהול'}
         </button>
       </footer>
 
